@@ -125,6 +125,14 @@ enum ExifFieldIDs : uint16_t
     EXIF_FIELD_Sharpness = 0xA40A,
     EXIF_FIELD_DeviceSettingDescription = 0xA40B,
     EXIF_FIELD_SubjectDistanceRange = 0xA40C,
+    EXIF_FIELD_SensitivityType = 0x8830,
+    EXIF_FIELD_RecommendedExposureIndex = 0x8832,
+    EXIF_FIELD_InteroperabilityTag = 0xa005,
+    EXIF_FIELD_CameraOwnerName = 0xa430,
+    EXIF_FIELD_BodySerialNumber = 0xa431,
+    EXIF_FIELD_LensSpecification = 0xa432,
+    EXIF_FIELD_LensModel = 0xa434,
+    EXIF_FIELD_LensSerialNumber = 0xa435,
 };
 
 
@@ -177,17 +185,13 @@ struct Entry
         int32_t denominator;
     };
 #pragma pack()
-    union
-    {
-        std::string d_text;
-        std::vector<uint8_t> d_bytes;
-        std::vector<uint16_t> d_shorts;
-        std::vector<uint32_t> d_longs;
-        std::vector<int32_t> d_slongs;
-        std::vector<urational> d_urationals;
-        std::vector<srational> d_srationals;
-
-    };
+    std::string d_text;
+    std::vector<uint8_t> d_bytes;
+    std::vector<uint16_t> d_shorts;
+    std::vector<uint32_t> d_longs;
+    std::vector<int32_t> d_slongs;
+    std::vector<urational> d_urationals;
+    std::vector<srational> d_srationals;
 
     void read(std::iostream & file)
     {
@@ -202,8 +206,26 @@ struct Entry
 
     void print()
     {
-        printf("Entry id : %s \n \t data format: %d\n\t number of components: %d\n\t data_or_offset: %d \n",
-               getFieldId((ExifFieldIDs)entry_id).c_str(), data_format, num_of_components, data_or_offest);
+        printf("Entry id : %s (%d - 0x%02X) \n \t data format: %d\n\t number of components: %d\n\t data_or_offset: %d",
+               getFieldId((ExifFieldIDs)entry_id).c_str(), 
+               entry_id, 
+               entry_id, 
+               data_format, 
+               num_of_components, 
+               data_or_offest);
+        auto data_size = num_of_components * sizeOfComponents(data_format);
+        if (data_size > 4)
+        {
+            switch (data_format)
+            {
+            case 2: case 7: printf("\t data: %s", d_text.data()); break;
+            case 5: printf("\t data: %d / %d", d_urationals[0].numerator, d_urationals[0].denominator); break;
+            case 10: printf("\t data: %d / %d", d_srationals[0].numerator, d_srationals[0].denominator); break;
+            default:
+                break;
+            }
+        }
+        printf("\n");
     }
     Entry() : d_text(){}
     Entry(const Entry & o) :d_text(o.d_text) {}

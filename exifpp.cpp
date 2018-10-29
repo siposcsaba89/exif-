@@ -58,7 +58,7 @@ void Exif::parse(std::iostream & exif_stream, std::streampos header_poss)
     for (size_t i = 0; i < num_entries; ++i)
     {
         m_entries[i].read(exif_stream);
-        m_entries[i].print();
+        //m_entries[i].print();
     }
 
     uint32_t next_ifd_offset;
@@ -68,10 +68,11 @@ void Exif::parse(std::iostream & exif_stream, std::streampos header_poss)
     //read ifd datas
     for (auto & entry : m_entries)
     {
-        if (entry.num_of_components * sizeOfComponents(entry.data_format) > 4)
+        size_t data_size = entry.num_of_components * sizeOfComponents(entry.data_format);
+        if (data_size > 4)
         {
             exif_stream.seekg(header_pos + std::streampos(entry.data_or_offest));
-            if (entry.data_format == 2) // text
+            if (entry.data_format == 2 || entry.data_format == 7) // text
             {
                 entry.d_text.resize(entry.num_of_components);
                 exif_stream.read(&entry.d_text[0], entry.num_of_components);
@@ -94,10 +95,9 @@ void Exif::parse(std::iostream & exif_stream, std::streampos header_poss)
             }
             else if (entry.data_format == 5) //urational
             {
-                entry.d_text.~basic_string();
-                new (&entry.d_urationals) std::vector<Entry::urational>;
                 entry.d_urationals.resize(entry.num_of_components);
-                exif_stream.read((char*)entry.d_urationals.data(), entry.num_of_components);
+                exif_stream.read((char*)entry.d_urationals.data(), 
+                                 data_size);
             }
             else if (entry.data_format == 9) //int
             {
@@ -106,11 +106,18 @@ void Exif::parse(std::iostream & exif_stream, std::streampos header_poss)
             }
             else if (entry.data_format == 10) //srational
             {
-                entry.d_urationals.resize(entry.num_of_components);
-                exif_stream.read((char*)entry.d_urationals.data(), entry.num_of_components);
+                entry.d_srationals.resize(entry.num_of_components);
+                exif_stream.read((char*)entry.d_srationals.data(), data_size);
             }
         }
+        entry.print();
         if (entry.entry_id == EXIF_FIELD_ExifIFDPointer)
+        {
+            exif_stream.seekg(header_pos + std::streampos(entry.data_or_offest));
+            Exif e;
+            e.parse(exif_stream, header_pos);
+        }
+        else if (entry.entry_id == EXIF_FIELD_GPSInfoIFDPointer)
         {
             exif_stream.seekg(header_pos + std::streampos(entry.data_or_offest));
             Exif e;
@@ -211,6 +218,14 @@ static const std::map<ExifFieldIDs, std::string> field_string_map =
     {EXIF_FIELD_Sharpness, "Sharpness"},
     {EXIF_FIELD_DeviceSettingDescription, "DeviceSettingDescription"},
     {EXIF_FIELD_SubjectDistanceRange, "SubjectDistanceRange"},
+    {EXIF_FIELD_SensitivityType, "SensitivityType"},
+    {EXIF_FIELD_RecommendedExposureIndex, "RecommendedExposureIndex"},
+    {EXIF_FIELD_InteroperabilityTag, "InteroperabilityTag"},
+    {EXIF_FIELD_CameraOwnerName, "CameraOwnerName"},
+    {EXIF_FIELD_BodySerialNumber, "BodySerialNumber"},
+    {EXIF_FIELD_LensSpecification, "LensSpecification"},
+    {EXIF_FIELD_LensModel, "LensModel"},
+    {EXIF_FIELD_LensSerialNumber, "LensSerialNumber"}
 };
 
 
@@ -227,15 +242,12 @@ size_t sizeOfComponents(uint16_t data_format)
 {
     switch (data_format)
     {
-    case 1: return 1;
-    case 2: return 1;
+    case 1: case 2: case 7: return 1;
     case 3: return 2;
-    case 4: return 4;
-    case 5: return 8;
-    case 9: return 4;
-    case 10: return 8;
+    case 4: case 9: return 4;
+    case 5: case 10: return 8;
     default:
-        return -1;
+        return 0;
         break;
     }
 }
